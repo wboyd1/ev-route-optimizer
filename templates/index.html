@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EV Route Optimizer</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar" id="sidebar">
+
+    <!-- Logo -->
+    <div class="sidebar-logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M13 2L4.5 13.5H11L10 22L19.5 10.5H13L13 2Z" fill="currentColor"/>
+        </svg>
+      </div>
+      <div class="logo-text">
+        <span class="logo-title">EV Route</span>
+        <span class="logo-sub">Optimizer</span>
+      </div>
+    </div>
+
+    <!-- Form -->
+    <div class="form-card">
+      <div class="input-group">
+        <label class="input-label">
+          <span class="label-dot dot-green"></span>
+          Starting Point
+        </label>
+        <div class="input-wrap">
+          <svg class="input-icon" viewBox="0 0 20 20" fill="currentColor">
+            <circle cx="10" cy="8" r="3.5" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            <path d="M10 2C6.686 2 4 4.686 4 8c0 5 6 10 6 10s6-5 6-10c0-3.314-2.686-6-6-6z" stroke="currentColor" stroke-width="1.5" fill="none"/>
+          </svg>
+          <input type="text" id="input-start" class="form-input" placeholder="e.g. London" autocomplete="off" />
+        </div>
+      </div>
+
+      <div class="route-line-connector">
+        <div class="connector-dot"></div>
+        <div class="connector-track"></div>
+        <div class="connector-dot"></div>
+      </div>
+
+      <div class="input-group">
+        <label class="input-label">
+          <span class="label-dot dot-red"></span>
+          Destination
+        </label>
+        <div class="input-wrap">
+          <svg class="input-icon" viewBox="0 0 20 20" fill="none">
+            <path d="M10 2C6.686 2 4 4.686 4 8c0 5 6 10 6 10s6-5 6-10c0-3.314-2.686-6-6-6z" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M10 6v4l2.5 1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          <input type="text" id="input-end" class="form-input" placeholder="e.g. Edinburgh" autocomplete="off" />
+        </div>
+      </div>
+
+      <!-- Range Slider -->
+      <div class="range-group">
+        <div class="range-header">
+          <label class="input-label">
+            <svg class="label-icon" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z"/>
+            </svg>
+            Battery Range
+          </label>
+          <div class="range-value-box">
+            <span id="range-display">300</span>
+            <span class="range-unit">km</span>
+          </div>
+        </div>
+
+        <div class="slider-wrap">
+          <input type="range" id="range-slider" class="range-slider"
+                 min="50" max="600" value="300" step="10" />
+          <div class="slider-fill" id="slider-fill"></div>
+        </div>
+
+        <div class="range-markers">
+          <span>50 km</span>
+          <span id="vehicle-hint" class="vehicle-hint">Tesla Model 3 LR ≈ 300 km</span>
+          <span>600 km</span>
+        </div>
+      </div>
+
+      <button id="plan-btn" class="plan-btn" onclick="planRoute()">
+        <svg class="btn-icon" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M12.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z"/>
+        </svg>
+        Plan My Route
+      </button>
+    </div>
+
+    <!-- Results Panel -->
+    <div id="results-panel" class="results-panel hidden">
+
+      <!-- Stats Grid -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value" id="stat-dist">—</div>
+          <div class="stat-label">Distance</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-time">—</div>
+          <div class="stat-label">Drive Time</div>
+        </div>
+        <div class="stat-card stat-card--accent">
+          <div class="stat-value" id="stat-stops">—</div>
+          <div class="stat-label">Charge Stops</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-energy">—</div>
+          <div class="stat-label">Energy Used</div>
+        </div>
+      </div>
+
+      <!-- Journey Timeline -->
+      <div class="timeline-header">Journey Plan</div>
+      <div id="timeline" class="timeline"></div>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="sidebar-footer">
+      <p>Map: OpenStreetMap · Routing: OSRM · Geocoding: Nominatim</p>
+    </div>
+
+  </aside>
+
+  <!-- ── Map ── -->
+  <main class="map-area">
+    <div id="map"></div>
+
+    <!-- Loading overlay -->
+    <div id="loading" class="loading-overlay hidden">
+      <div class="loading-card">
+        <div class="spinner">
+          <div class="spinner-ring"></div>
+          <div class="spinner-bolt">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M13 2L4.5 13.5H11L10 22L19.5 10.5H13L13 2Z"/>
+            </svg>
+          </div>
+        </div>
+        <div class="loading-text">Planning your route…</div>
+        <div class="loading-sub" id="loading-sub">Geocoding locations</div>
+      </div>
+    </div>
+
+    <!-- Map legend -->
+    <div class="map-legend">
+      <div class="legend-item">
+        <span class="legend-dot legend-start"></span> Start
+      </div>
+      <div class="legend-item">
+        <span class="legend-dot legend-end"></span> End
+      </div>
+      <div class="legend-item">
+        <span class="legend-dot legend-stop"></span> Your Stops
+      </div>
+      <div class="legend-item">
+        <span class="legend-dot legend-nearby"></span> Other Stations
+      </div>
+    </div>
+
+    <!-- Error toast -->
+    <div id="error-toast" class="error-toast hidden">
+      <svg viewBox="0 0 20 20" fill="currentColor" class="toast-icon">
+        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"/>
+      </svg>
+      <span id="error-msg"></span>
+    </div>
+  </main>
+
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/static/js/app.js"></script>
+</body>
+</html>
