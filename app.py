@@ -9,6 +9,33 @@ OSRM_BASE = "http://router.project-osrm.org"
 NOMINATIM_BASE = "https://nominatim.openstreetmap.org"
 USER_AGENT = "EV-Route-Optimizer/1.0 (local-dev-project)"
 
+
+# ───  EV Vehicle Dataset ─────────────────────────────────────────
+VEHICLE_PROFILES = {
+    "small_van":{
+        "name": "Small EV Van",
+        "efficiency_kwh_per_km": 0.18,
+        "battery_kwh": 50,
+    },
+    "medium_van":{
+        "name": "Medium EV Van",
+        "efficiency_kwh_per_km": 0.22,
+        "battery_kwh": 75,
+    },
+    "large_van":{
+        "name": "Large EV Van",
+        "efficiency_kwh_per_km": 0.30,
+        "battery_kwh": 100,
+    },
+    "articulated_truck":{
+        "name": "Articulated EV Truck",
+        "efficiency_kwh_per_km": 0.40,
+        "battery_kwh": 150,
+    }    
+}
+
+DEFAULT_VEHICLE_PROFILE = "medium_van"
+
 # ─── UK EV Charging Station Dataset ─────────────────────────────────────────
 # Includes motorway services, GRIDSERVE forecourts, city hubs, airports, retail
 CHARGING_STATIONS = [
@@ -219,7 +246,7 @@ def geocode_location(query):
               "countrycodes": "gb", "addressdetails": 0}
     try:
         r = requests.get(url, params=params,
-                         headers={"User-Agent": USER_AGENT}, timeout=10)
+                         headers={"User-Agent": USER_AGENT}, timeout=10, verify=False)
         results = r.json()
         if results:
             return {
@@ -265,6 +292,16 @@ def estimate_charge_minutes(range_km, power_kw):
     charge_kwh = battery_kwh * 0.70
     return round(charge_kwh / power_kw * 60)
 
+
+
+def get_vehicle_profile(vehicle_key):
+    return VEHICLE_PROFILES.get(vehicle_key, VEHICLE_PROFILES[DEFAULT_VEHICLE_PROFILE])
+
+def estimate_energy(distance_km, vehicle_key):
+    vehicle = get_vehicle_profile(vehicle_key)
+    efficiency = vehicle["efficiency_kwh_per_km"]
+
+    return distance_km * efficiency
 
 # ─── Core Routing Algorithm ──────────────────────────────────────────────────
 
@@ -379,10 +416,15 @@ def plan_route():
     end_q      = (data.get("end")   or "").strip()
     range_km   = float(data.get("range_km", 300))
 
+
     if not start_q or not end_q:
         return jsonify({"error": "Please enter both a start and destination."}), 400
     if range_km < 30:
         return jsonify({"error": "Range must be at least 30 km."}), 400
+
+
+    # ─ Selecting Vehicle ───────────────────────────────────────────────────────
+    vehicle_key = data.get("vehicle_profile", DEFAULT_VEHICLE_PROFILE)
 
     # ── Geocode ──────────────────────────────────────────────────────────────
     start_loc = geocode_location(start_q)
@@ -421,7 +463,7 @@ def plan_route():
     nearby = get_nearby_stations(route["geometry"])
 
     # ── Energy estimate ──────────────────────────────────────────────────────
-    energy_kwh = round(route["distance_km"] * 0.18, 1)
+    energy_kwh = round(estimate_energy(route["distance_km"], vehicle_key), 1)
 
     return jsonify({
         "success": True,
