@@ -259,6 +259,19 @@ def geocode_location(query):
     return None
 
 
+def get_altitude(start_coords, end_coords):
+    """Open elevation - returns altitude of a point or None"""
+    url = f"https://api.open-elevation.com/api/v1/lookup?locations={start_coords[0]},{start_coords[1]}|{end_coords[0]},{end_coords[1]}"
+    print(f"Request sent to: {url}")
+    try:
+        r = requests.get(url, timeout=10, verify=False, headers={"User-Agent": USER_AGENT})
+        print("Status code:", r.status_code)
+        print("Raw response:", repr(r.text))
+        return 1, 1
+    except Exception as e:
+        print(f"Altitude error: {e}")
+    return None, None
+
 def get_osrm_route(waypoints):
     """
     Fetch a driving route from the public OSRM instance.
@@ -297,6 +310,12 @@ def estimate_charge_minutes(range_km, power_kw):
 def get_vehicle_profile(vehicle_key):
     return VEHICLE_PROFILES.get(vehicle_key, VEHICLE_PROFILES[DEFAULT_VEHICLE_PROFILE])
 
+
+#Estimating energy needed here, insert total altitude here
+"""
+Vehicles don't recover 100% of energy when going downhill so downhill multiplied by 70% to account for this
+Total effect will be based on the difference between the altitude gained and the altitude lost
+"""
 def estimate_energy(distance_km, vehicle_key):
     vehicle = get_vehicle_profile(vehicle_key)
     efficiency = vehicle["efficiency_kwh_per_km"]
@@ -438,6 +457,9 @@ def plan_route():
 
     start_coords = (start_loc["lat"], start_loc["lon"])
     end_coords   = (end_loc["lat"],   end_loc["lon"])
+
+    # -- Calculating altitude difference between both coordinates -------------
+    start_alt, end_alt = get_altitude(start_coords, end_coords)
 
     direct_km = haversine(*start_coords, *end_coords)
 
