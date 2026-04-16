@@ -259,15 +259,34 @@ def geocode_location(query):
     return None
 
 
-def get_altitude(start_coords, end_coords):
+def get_adjusted_ascent(start_coords, end_coords):
     """Open elevation - returns altitude of a point or None"""
-    url = f"https://api.open-elevation.com/api/v1/lookup?locations={start_coords[0]},{start_coords[1]}|{end_coords[0]},{end_coords[1]}"
+    url = f"https://api.opentopodata.org/v1/eudem25m?locations={start_coords[0]},{start_coords[1]}|{end_coords[0]},{end_coords[1]}&samples=100"
     print(f"Request sent to: {url}")
     try:
         r = requests.get(url, timeout=10, verify=False, headers={"User-Agent": USER_AGENT})
         print("Status code:", r.status_code)
-        print("Raw response:", repr(r.text))
-        return 1, 1
+        result = r.json()
+
+        #For loop to get total change in height
+        prev_point = result["results"][0]
+        total_asc = 0
+        total_desc = 0
+        for curr_point in result["results"][1:]:
+            diff = prev_point["elevation"] - curr_point["elevation"]
+            if diff > 0:
+                total_asc += diff
+            else:
+                total_desc += diff
+            prev_point = curr_point
+
+        #Calculate effect this has on capacity via a number, maybe knock it off the range?
+        #It'll lose 15-20% on way up then won't really regen all that on the way down
+        adjusted_desc = total_desc * 0.75
+        adjusted_total = total_asc - adjusted_desc
+
+        return round(adjusted_total)/1000
+    
     except Exception as e:
         print(f"Altitude error: {e}")
     return None, None
@@ -459,12 +478,16 @@ def plan_route():
     end_coords   = (end_loc["lat"],   end_loc["lon"])
 
     # -- Calculating altitude difference between both coordinates -------------
-    start_alt, end_alt = get_altitude(start_coords, end_coords)
+    ascent_height = get_adjusted_ascent(start_coords, end_coords)
+    if ascent_height > 0:
+        adjusted_range = range_km + ascent_height
+    else:
+        adjusted_range = range_km
 
     direct_km = haversine(*start_coords, *end_coords)
 
     # ── Charging stop optimisation ───────────────────────────────────────────
-    stops, err = calculate_charging_stops(start_coords, end_coords, range_km)
+    stops, err = calculate_charging_stops(start_coords, end_coords, adjusted_range)
     if err:
         return jsonify({"error": err}), 400
 
