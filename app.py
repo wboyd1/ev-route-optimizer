@@ -480,7 +480,7 @@ def plan_route():
     # -- Calculating altitude difference between both coordinates -------------
     ascent_height = get_adjusted_ascent(start_coords, end_coords)
     if ascent_height > 0:
-        adjusted_range = range_km + ascent_height
+        adjusted_range = range_km - ascent_height
     else:
         adjusted_range = range_km
 
